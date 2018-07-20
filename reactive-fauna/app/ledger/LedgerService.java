@@ -23,13 +23,14 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 
 import static com.faunadb.client.query.Language.*;
+import static com.faunadb.client.query.Language.Arr;
 import static com.faunadb.client.query.Language.Class;
 
 @Singleton
 public class LedgerService {
 
-    private String LEDGER_CLASS = "main_ledger_class";
-    private String INDEX_LEDGER_BY_CLIENT_ID = "ledger_index_client_id";
+    private String LEDGER_CLASS = "ledger";
+    private String LEDGER_BY_CLIENT_ID = "ledger_client_id";
 
     Executor executor = new ForkJoinPool();
 
@@ -47,16 +48,41 @@ public class LedgerService {
     }
 
     public CompletableFuture<Value> addEntry(LedgerEntry ledgerEntry) throws Exception {
+
         Expr entryValue = Language.Value(ledgerEntry);
 
-        ListenableFuture<Value> addEntryFuture = faunaClient.query(
-            Create(
-                Class(Language.Value(LEDGER_CLASS)),
-                Obj("data", entryValue)
+        //select the latest entry out of the ledger index for a given client and then add 1 to it
+        //that gives the latest ledger index
+        Expr selectLatestValue = Add(
+            Select(
+                Arr(Value(0), Value(0)),
+                Paginate(Match(Index(LEDGER_BY_CLIENT_ID), Value(ledgerEntry.getClientId()))),
+                Value(0)),
+            Value(1));
+
+        System.out.println("selectLatestValue = " + selectLatestValue);
+        Value v1 = faunaClient.query(
+            Let(
+                "latest", selectLatestValue).in(Var("latest"))
+        ).get();
+
+        Expr saveLedgerEntry = Arr(Value("saved"), Create(
+            Class(Language.Value(LEDGER_CLASS)),
+            Obj("data", entryValue)
+            ));
+
+
+        //store the latest index for a client in the latest variable and then use that to ensure the client is inserting the right value
+        ListenableFuture<Value> futureFuture = faunaClient.query(
+            Let(
+                "latest",selectLatestValue).in(
+                If(Equals(Var("latest"), Value(ledgerEntry.getCounter())),
+                    saveLedgerEntry,
+                    Arr(Value("not_saved"),Var("latest")))
             )
         );
 
-        return CompletableFuturesExtra.toCompletableFuture(addEntryFuture, executor);
+        return CompletableFuturesExtra.toCompletableFuture(futureFuture, executor);
     }
 
     public CompletableFuture<Collection<LedgerEntry>> all(int clientId) throws Exception {
@@ -70,7 +96,7 @@ public class LedgerService {
             SelectAll(Path("data", "data"),
                 Map(
                     Paginate(
-                        Match(Index(Language.Value(INDEX_LEDGER_BY_CLIENT_ID)), Language.Value(clientId))
+                        Match(Index(Language.Value(LEDGER_BY_CLIENT_ID)), Language.Value(clientId))
                     ),
                     Lambda(Arr(Language.Value("counter"), Language.Value(REF_ENTRY_ID)), Get(Var(REF_ENTRY_ID))))
             )
@@ -86,7 +112,9 @@ public class LedgerService {
             @Nullable
             @Override
             public Collection<LedgerEntry> apply(@Nullable Value results) {
-                return results.asCollectionOf(LedgerEntry.class).get();
+                Collection<LedgerEntry> ledgerEntries = results.asCollectionOf(LedgerEntry.class).get();
+                System.out.println("ledgerEntries size = " + ledgerEntries.size());
+                return ledgerEntries;
             }
         });
 
@@ -99,7 +127,7 @@ public class LedgerService {
                     Select(
                         Arr(Language.Value(0), Language.Value(1)),
                         Paginate(
-                            Match(Index(Language.Value(INDEX_LEDGER_BY_CLIENT_ID)), Language.Value(clientId))
+                            Match(Index(Language.Value(LEDGER_BY_CLIENT_ID)), Language.Value(clientId))
                         )
                     )
                 )
@@ -141,7 +169,7 @@ public class LedgerService {
         Value indexResults = faunaClient.query(
             CreateIndex(
                 Obj(
-                    "name", Language.Value(INDEX_LEDGER_BY_CLIENT_ID),
+                    "name", Language.Value(LEDGER_BY_CLIENT_ID),
                     "source", Class(Language.Value(LEDGER_CLASS)),
                     "terms", Arr(Obj("field", Arr(Language.Value("data"), Language.Value("clientId")))),
                     "values", Arr(
