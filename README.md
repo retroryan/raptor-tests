@@ -37,18 +37,26 @@ For example with [HTTPie](https://httpie.org/doc):
 
 ## Deploy to Kubernetes
 
+```
 gcloud container clusters create raptor \
       --cluster-version=1.9.7 \
       --num-nodes 3 \
       --machine-type n1-standard-2
+```
 
+```
 sbt docker:publishLocal
+```
 
+```
 gcloud auth configure-docker
 docker tag reactive-fauna:1.1 gcr.io/precise-window-210817/reactive-fauna:1.1
 docker push gcr.io/precise-window-210817/reactive-fauna:1.1
+```
 
+```
 kubectl create -f react-fauna.yaml
 kubectl get pods
 kubectl logs -f reactive-fauna-v1-7d95896c94-6k522
 kubectl port-forward reactive-fauna-v1-75549546d7-ttz8n 9000
+```
