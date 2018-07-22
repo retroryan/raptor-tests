@@ -1,11 +1,14 @@
 name := """reactive-fauna"""
 organization := "raptor"
 
-version := "1.0-SNAPSHOT"
+version := "1.1"
 
 resolvers += Resolver.mavenLocal
 
-lazy val root = (project in file(".")).enablePlugins(PlayJava)
+lazy val root = (project in file("."))
+  .enablePlugins(PlayJava)
+  .enablePlugins(JavaAppPackaging)
+
 
 scalaVersion := "2.12.4"
 

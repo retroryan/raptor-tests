@@ -20,7 +20,7 @@ public class FaunaConfig {
         String host  = faunaConfig.getString("host");
         String port  = faunaConfig.getString("port");
 
-        endPoint = "http://" + host + ":" + port;
+        endPoint = "https://" + host + ":" + port;
 
         secret = faunaConfig.getString("secret");
         deleteDB = faunaConfig.getString("delete_db");

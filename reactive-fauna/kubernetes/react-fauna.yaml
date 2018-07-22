@@ -1,0 +1,35 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: reactive-fauna-v1
+  labels:
+    app: reactive-fauna-v1
+    version: "1.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reactive-fauna
+      serving: "true"
+  template:
+    metadata:
+      labels:
+        app: reactive-fauna
+        version: "latest"
+        serving: "true"
+        visualize: "true"
+        version: "1.0"
+    spec:
+      containers:
+      - name: reactive-fauna
+        image: gcr.io/precise-window-210817/reactive-fauna:1.1
+        env:
+        - name: version
+          value: "1.0"
+        - name: FAUNA_SECRET
+          value: change me
+        - name: APPLICATION_SECRET
+          value: change me
+        ports:
+        - name: http
+          containerPort: 9000
